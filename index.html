@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+	<meta content="text/html" charset="utf-8" http-equiv="content-type">
+
+</head>
+  <body>
+      <video></video>
+      <script>
+          window.LIBHELIO = true;
+          //var mimeCodec = 'video/mp4; codecs="avc3.4d401f"'
+          var mimeCodec = LIBHELIO ? "video/mp2ts" : 'video/mp4; codecs="avc1.42C01E"';
+          function reportTime(time, key) {
+              var p = document.createElement("p");
+              p.innerHTML = key + " took: " + time + " ms.";
+              document.body.appendChild(p);
+          }
+
+          function timeFunction(fn, key) {
+              var start = Date.now(), end;
+              fn();
+              end = Date.now();
+              reportTime(end - start, key || fn.name);
+          }
+
+          function fetchAB(url, cb) {
+            var oReq = new XMLHttpRequest();
+            oReq.open("GET", url, true);
+            oReq.responseType = "arraybuffer";
+            oReq.onload = function (oEvent) {
+              var arrayBuffer = oReq.response;
+              if (arrayBuffer) {
+                cb(arrayBuffer);
+              }
+            }
+            oReq.send(null);
+          }
+
+          function segmentGenerator() {
+              var i = 0;
+              var sources = LIBHELIO ? ["index0.ts"] : ["Conan_the_Adventurer_Opening_342485059843_mpd_video_480x0_464000_2_38b5897d97ac4f15a0516b71686bf054_.mp4"];
+              return function() {
+                  return sources[i++];
+              }
+          }
+
+          document.addEventListener("DOMContentLoaded", function(evt) {
+             //console["debug"].apply(console, ["ClassName", "msg1", "msg2", "msg3"]);
+
+
+
+
+              timeFunction(function isTypeSupported(){
+                  MediaSource.isTypeSupported(mimeCodec);
+              }, "MediaSource.isTypeSupported");
+
+              var ms;
+              var sb;
+              var v = document.querySelector('video');
+              var url;
+              var source = segmentGenerator();
+
+              timeFunction(function (){
+                  ms = new MediaSource();
+              }, "new MediaSource()");
+
+              url  = URL.createObjectURL(ms);
+
+              ms.addEventListener('sourceopen', function(){
+                  timeFunction(function addSourceBuffer(mimeCodec){
+                      sb = ms.addSourceBuffer("video/mp4");
+                  }, "mediaSource.addSourceBuffer");
+                  var start, end, bufferSize = 0;
+                  sb.addEventListener('updatestart', function(){
+                      start = Date.now();
+                  });
+                  sb.addEventListener('updateend', function(){
+                      end = Date.now();
+                      reportTime(end - start, "SourceBuffer updatestart - updateend bytes: " + bufferSize);
+
+                  });
+                  sb.addEventListener("error", function(evt){
+                      console.log(evt);
+                      console.log("URL.revokeObjectURL(objectURL); start");
+                      // this doesn't atually call the destructor..
+                      URL.revokeObjectURL(url);
+                      // this does..
+                      v.src = undefined;
+                      console.log("URL.revokeObjectURL(objectURL); end");
+                  });
+                  sb.addEventListener("abort", function(){
+                      console.error("abort");
+                      console.error(arguments);
+                  });
+                  fetchAB(source(), function(buffer){
+                      bufferSize = buffer.length;
+                      sb.appendBuffer(buffer);
+                  });
+              });
+
+              timeFunction(function vsrcAssignment(){
+                  v.src = url;
+              }, "video.src = URL.createObjectURL(mediaSource)");
+           });
+      </script>
+  </body>
+</html>
